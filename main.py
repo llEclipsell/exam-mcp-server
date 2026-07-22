@@ -1,7 +1,5 @@
 import hashlib
-import os
 
-from fastapi import FastAPI, Request
 from fastmcp import FastMCP, Context
 
 
@@ -26,83 +24,52 @@ async def solve_challenge(
     ctx: Context,
 ) -> str:
     """
-    Solve the current exam challenge.
+    Return the first 16 lowercase hex characters of:
 
-    The challenge is intentionally NOT accepted as a tool
-    argument. It is read from the HTTP request headers.
+    SHA-256("${challenge}:${normalizedEmail}")
+
+    The challenge is read from the HTTP request header,
+    not from the tool arguments.
     """
 
-    # --------------------------------------------------------
     # Get the underlying HTTP request.
-    # --------------------------------------------------------
+    request = ctx.request_context.request
 
-    request: Request = ctx.request_context.request
-
-
-    # --------------------------------------------------------
-    # Read the challenge header.
-    # --------------------------------------------------------
-
+    # Read the challenge sent by the grader.
     challenge = request.headers.get(
         "x-exam-challenge"
     )
-
 
     if not challenge:
         raise ValueError(
             "Missing X-Exam-Challenge header."
         )
 
-
-    # --------------------------------------------------------
-    # Normalize registered email exactly as specified.
-    # --------------------------------------------------------
-
+    # Normalize registered exam email.
     normalized_email = (
         REGISTERED_EMAIL
         .strip()
         .lower()
     )
 
-
-    # --------------------------------------------------------
-    # Compute:
-    #
-    # SHA-256("${challenge}:${normalizedEmail}")
-    #
-    # Then return first 16 lowercase hex characters.
-    # --------------------------------------------------------
-
+    # Construct exact string:
+    # challenge:normalizedEmail
     payload = (
         f"{challenge}:{normalized_email}"
     )
 
-
+    # SHA-256 and first 16 lowercase hex characters.
     digest = hashlib.sha256(
         payload.encode("utf-8")
     ).hexdigest()
-
 
     return digest[:16]
 
 
 # ============================================================
-# ASGI APP
+# MCP STREAMABLE HTTP APPLICATION
 # ============================================================
 
 app = mcp.http_app(
     path="/mcp"
 )
-
-
-# ============================================================
-# OPTIONAL HEALTH ENDPOINT
-# ============================================================
-
-@app.get("/")
-async def root():
-    return {
-        "status": "ok",
-        "service": "Exam Challenge MCP Server",
-        "mcp_endpoint": "/mcp",
-    }
